@@ -94,6 +94,15 @@ textarea{min-height:70px;resize:vertical}
 <main>
 <section class="form" id="form">
 
+<details id="syncSec"><summary>Synchronizacja (Dysk Google)</summary><div class="grid">
+  <p class="hint">Oferty, karty katalogowe i dane firmy zapisują się w folderze „Oferty PV” na Twoim Dysku Google, więc masz je na telefonie, laptopie i PC. Bez internetu aplikacja działa dalej, a zmiany wyśle przy następnym połączeniu.</p>
+  <label class="full">Adres skryptu (kończy się na /exec)<input id="s_url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+  <label class="full">Hasło<input id="s_haslo" type="password" autocomplete="off"></label>
+  <label class="inline full"><input type="checkbox" id="s_pdf"> Zapisuj pobrane PDF-y w folderze „Oferty PV/PDF”</label>
+  <div class="full" style="display:flex;gap:8px;flex-wrap:wrap"><button id="sConnect">Połącz i synchronizuj</button><button id="sOff">Odłącz to urządzenie</button></div>
+  <div class="status" id="sStatus">Synchronizacja wyłączona na tym urządzeniu.</div>
+</div></details>
+
 <details open><summary>Oferta</summary><div class="grid">
   <label class="full">Rodzaj oferty<select id="x_typ"><option value="pv">Nowa instalacja PV (opcjonalnie z magazynem)</option><option value="mag">Montaż magazynu energii (z wymianą falownika)</option></select></label>
   <label class="full">Tytuł oferty<input id="o_tytul" placeholder="(automatycznie)"></label>
@@ -168,15 +177,6 @@ textarea{min-height:70px;resize:vertical}
   <label>Rodzaj karty<select id="zalKat"><option value="panele">Moduły PV</option><option value="falownik">Falownik</option><option value="magazyn">Magazyn energii</option><option value="ems">System EMS</option><option value="inne">Inne</option></select></label>
   <label>Plik (PDF, JPG, PNG)<input id="zalFile" type="file" accept="application/pdf,image/*" multiple></label>
   <div class="lib" id="lib"></div>
-</div></details>
-
-<details id="syncSec"><summary>Synchronizacja (Dysk Google)</summary><div class="grid">
-  <p class="hint">Oferty, karty katalogowe i dane firmy zapisują się w folderze „Oferty PV” na Twoim Dysku Google, więc masz je na telefonie, laptopie i PC. Bez internetu aplikacja działa dalej, a zmiany wyśle przy następnym połączeniu.</p>
-  <label class="full">Adres skryptu (kończy się na /exec)<input id="s_url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
-  <label class="full">Hasło<input id="s_haslo" type="password" autocomplete="off"></label>
-  <label class="inline full"><input type="checkbox" id="s_pdf"> Zapisuj pobrane PDF-y w folderze „Oferty PV/PDF”</label>
-  <div class="full" style="display:flex;gap:8px;flex-wrap:wrap"><button id="sConnect">Połącz i synchronizuj</button><button id="sOff">Odłącz to urządzenie</button></div>
-  <div class="status" id="sStatus">Synchronizacja wyłączona na tym urządzeniu.</div>
 </div></details>
 
 <details><summary>Dane firmy</summary><div class="grid">
@@ -566,7 +566,7 @@ document.getElementById('sOff').onclick=()=>{sync.cfg={url:'',haslo:'',pdf:sync.
 document.getElementById('syncChip').onclick=()=>{if(sync.on())sync.run();else{const d=document.getElementById('syncSec');d.open=true;d.scrollIntoView({behavior:'smooth'});}};
 window.addEventListener('online',()=>sync.run());window.addEventListener('offline',()=>sync.idle());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-(sync.cfg.ostatnio||0)>20000)sync.run();});
-bindFields();fillFields();sync.idle();loadLib().then(()=>{preview();sync.run();});
+bindFields();fillFields();sync.idle();if(!sync.on())document.getElementById('syncSec').open=true;loadLib().then(()=>{preview();sync.run();});
 window.addEventListener('resize',()=>{clearTimeout(tmr);tmr=setTimeout(preview,400)});
 </script>
 </body>
