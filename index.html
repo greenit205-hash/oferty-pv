@@ -122,6 +122,8 @@ textarea{min-height:70px;resize:vertical}
   <label class="full pvonly">System EMS – opis<input id="i_ems_opis" placeholder="np. zarządzanie ładowaniem wg taryfy dynamicznej"></label>
   <label class="full mag2">Sposób montażu magazynu<input id="i_mag_montaz" placeholder="np. montaż naścienny w garażu"></label>
   <div class="calc" id="calcInst"></div>
+  <label class="full magonly">Miejsce montażu magazynu i falownika<input id="i_miejsce_mont" placeholder="np. garaż, ściana obok rozdzielni"></label>
+  <label class="full magonly">Przewody magazyn – falownik<input id="i_kabel" placeholder="np. 2 × 35 mm² Cu, długość ok. 2 m"></label>
   <label class="full magonly">Zabezpieczenia<input id="i_zab" placeholder="np. zabezpieczenia AC i DC, ochronniki przepięciowe"></label>
   <label class="full magonly">Zasilanie rezerwowe<input id="i_backup" placeholder="np. wydzielony obwód awaryjny: lodówka, CO, oświetlenie"></label>
   <label class="full magonly">Uzgodnienie ppoż.<input id="i_ppoz" placeholder="np. uzgodnienie z rzeczoznawcą ppoż. po stronie wykonawcy"></label>
@@ -280,6 +282,7 @@ function buildDoc(s){
     const rows=[
       ['Falownik do zamontowania',[i.fal_model,i.fal_opis].filter(Boolean).join('\n')],
       ['Magazyn energii',[i.mag_model,(i.mag_kwh?'pojemność '+kwh(c.mag)+' kWh':'')+((+i.mag_ilosc>1)?' ('+i.mag_ilosc+' × '+kwh(i.mag_kwh)+' kWh)':'')].filter(Boolean).join('\n')],
+      ['Miejsce montażu',i.miejsce_mont],['Przewody magazyn – falownik',i.kabel],
       ['Zabezpieczenia',i.zab],['Zasilanie rezerwowe',i.backup],['Uzgodnienie ppoż.',i.ppoz]
     ].filter(r=>r[1]&&String(r[1]).trim());
     const tab={table:{widths:[150,'*'],body:rows.map(r=>[{text:r[0],bold:true},r[1]])},layout:{hLineWidth:(n,node)=>(n>0&&n<node.table.body.length)?0.5:0,vLineWidth:()=>0,hLineColor:()=>LINE,paddingTop:()=>7,paddingBottom:()=>7,paddingLeft:()=>8,paddingRight:()=>8},fontSize:10,margin:[0,0,0,14]};
@@ -312,7 +315,7 @@ function newOffer(){return{
   id:uid(),typ:'pv',
   oferta:{tytul:'',nr:nextNr(),data:today(),waznosc:14},
   klient:{nazwa:'',adres:'',tel:'',email:'',miejsce:''},
-  inst:{montaz:'Dach skośny',uzysk:1000,pan_model:'Jinko Solar JKM550M-72HL4-V Silver Frame',pan_wp:550,pan_ilosc:16,fal_model:'Deye SUN-8K-SG04LP3-EU',fal_opis:'falownik hybrydowy, 3-fazowy, 8 kW',mag_on:true,mag_model:'Power Lab LiFePO4 51,2 V 200 Ah',mag_kwh:15.5,mag_ilosc:1,konstr:'Śruby dwugwintowe dokrokwiowe + aluminiowe szyny montażowe',mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy'},
+  inst:{montaz:'Dach skośny',uzysk:1000,pan_model:'Jinko Solar JKM550M-72HL4-V Silver Frame',pan_wp:550,pan_ilosc:16,fal_model:'Deye SUN-8K-SG04LP3-EU',fal_opis:'falownik hybrydowy, 3-fazowy, 8 kW',mag_on:true,mag_model:'Power Lab LiFePO4 51,2 V 200 Ah',mag_kwh:15.5,mag_ilosc:1,konstr:'Śruby dwugwintowe dokrokwiowe + aluminiowe szyny montażowe',mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy'},
   dodatki:JSON.parse(JSON.stringify(DOD_PV)),
   zakres:ZAKRES.map(t=>({tekst:t,on:true})),
   cena:{kwota:49700,tryb:'brutto',vat:8,dotacja:23000,program:'Mój Prąd'},
@@ -322,7 +325,7 @@ function newOffer(){return{
 };}
 let firma={...defFirma,...ls.get(LS_FIRMA,{})};
 let S=ls.get(LS_CUR,null)||newOffer();
-function migrate(o){o.typ=o.typ||'pv';o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
+function migrate(o){o.typ=o.typ||'pv';o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
 migrate(S);
 const full=()=>({...S,firma,zalList:(typeof LIB!=='undefined'?selectedAtt():[]).map(a=>({label:'Karta katalogowa – '+katLabel(a.kat).toLowerCase(),nazwa:a.label||a.name.replace(/\.[^.]+$/,'')}))});
 
