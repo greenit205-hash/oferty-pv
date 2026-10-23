@@ -90,7 +90,7 @@ textarea{min-height:70px;resize:vertical}
 <section class="form" id="form">
 
 <details open><summary>Oferta</summary><div class="grid">
-  <label class="full">Rodzaj oferty<select id="x_typ"><option value="pv">Nowa instalacja PV (opcjonalnie z magazynem)</option><option value="mag">Magazyn energii do istniejącej instalacji PV</option></select></label>
+  <label class="full">Rodzaj oferty<select id="x_typ"><option value="pv">Nowa instalacja PV (opcjonalnie z magazynem)</option><option value="mag">Montaż magazynu energii (z wymianą falownika)</option></select></label>
   <label class="full">Tytuł oferty<input id="o_tytul" placeholder="(automatycznie)"></label>
   <label>Numer oferty<input id="o_nr"></label>
   <label>Data<input id="o_data" type="date"></label>
@@ -106,11 +106,6 @@ textarea{min-height:70px;resize:vertical}
 </div></details>
 
 <details open><summary>Instalacja</summary><div class="grid">
-  <p class="hint full magonly">Istniejąca instalacja u klienta</p>
-  <label class="magonly">Moc istniejącej instalacji (kWp)<input id="i_ist_kwp" type="number" step="0.01"></label>
-  <label class="magonly">Obecny falownik<input id="i_ist_falownik" placeholder="np. Huawei SUN2000-6KTL-M1"></label>
-  <label class="full magonly">Opis istniejącej instalacji<input id="i_ist_opis" placeholder="np. 16 × 400 Wp, dach skośny, od 2021 r."></label>
-  <label class="inline full magonly"><input type="checkbox" id="i_fal_wymiana"> Wymiana falownika na hybrydowy</label>
   <label class="pvonly">Rodzaj montażu<select id="i_montaz"><option>Dach skośny</option><option>Dach płaski</option><option>Grunt</option><option>Elewacja / wiata</option></select></label>
   <label class="pvonly">Uzysk (kWh/kWp/rok)<input id="i_uzysk" type="number" step="10"></label>
   <label class="full pvonly">Moduły PV – model<input id="i_pan_model"></label>
@@ -123,16 +118,19 @@ textarea{min-height:70px;resize:vertical}
   <label class="mag">Pojemność 1 szt. (kWh)<input id="i_mag_kwh" type="number" step="0.1"></label>
   <label class="mag">Liczba szt.<input id="i_mag_ilosc" type="number" min="1"></label>
   <label class="full pvonly">Konstrukcja<input id="i_konstr"></label>
-  <label class="full">System EMS / sterownik – model<input id="i_ems_model" placeholder="opcjonalnie, np. sterownik EMS z licznikiem"></label>
-  <label class="full">System EMS – opis<input id="i_ems_opis" placeholder="np. zarządzanie ładowaniem wg taryfy dynamicznej"></label>
-  <label class="full mag">Sposób montażu magazynu<input id="i_mag_montaz" placeholder="np. montaż naścienny w garażu"></label>
+  <label class="full pvonly">System EMS / sterownik – model<input id="i_ems_model" placeholder="opcjonalnie, np. sterownik EMS z licznikiem"></label>
+  <label class="full pvonly">System EMS – opis<input id="i_ems_opis" placeholder="np. zarządzanie ładowaniem wg taryfy dynamicznej"></label>
+  <label class="full mag2">Sposób montażu magazynu<input id="i_mag_montaz" placeholder="np. montaż naścienny w garażu"></label>
   <div class="calc" id="calcInst"></div>
-  <p class="hint">Dodatkowe elementy zestawu</p>
-  <div class="rows" id="dodatki"></div>
-  <button class="add" data-add="dodatki">+ Dodaj element</button>
+  <label class="full magonly">Zabezpieczenia<input id="i_zab" placeholder="np. zabezpieczenia AC i DC, ochronniki przepięciowe"></label>
+  <label class="full magonly">Zasilanie rezerwowe<input id="i_backup" placeholder="np. wydzielony obwód awaryjny: lodówka, CO, oświetlenie"></label>
+  <label class="full magonly">Uzgodnienie ppoż.<input id="i_ppoz" placeholder="np. uzgodnienie z rzeczoznawcą ppoż. po stronie wykonawcy"></label>
+  <p class="hint pvonly">Dodatkowe elementy zestawu</p>
+  <div class="rows pvonly" id="dodatki"></div>
+  <button class="add pvonly" data-add="dodatki">+ Dodaj element</button>
 </div></details>
 
-<details open><summary>Zakres prac w cenie</summary><div class="grid">
+<details open class="pvonly"><summary>Zakres prac w cenie</summary><div class="grid">
   <div class="rows" id="zakres"></div>
   <button class="add" data-add="zakres">+ Dodaj pozycję</button>
 </div></details>
@@ -146,15 +144,15 @@ textarea{min-height:70px;resize:vertical}
   <div class="calc" id="calcCena"></div>
 </div></details>
 
-<details><summary>Gwarancje</summary><div class="grid">
+<details class="pvonly"><summary>Gwarancje</summary><div class="grid">
   <div class="rows" id="gwar"></div>
   <button class="add" data-add="gwar">+ Dodaj gwarancję</button>
   <p class="hint">Puste wiersze nie trafiają do PDF.</p>
 </div></details>
 
-<details open><summary>Warunki i uwagi</summary><div class="grid">
-  <label class="full">Termin realizacji<input id="w_realizacja"></label>
-  <label class="full">Warunki płatności<input id="w_platnosc"></label>
+<details open><summary class="pvsum">Warunki i uwagi</summary><div class="grid">
+  <label class="full pvonly">Termin realizacji<input id="w_realizacja"></label>
+  <label class="full pvonly">Warunki płatności<input id="w_platnosc"></label>
   <label class="full">Dodatkowe informacje dla klienta<textarea id="w_uwagi" placeholder="np. zalecenia, opcje rozbudowy, wymagania po stronie klienta"></textarea></label>
 </div></details>
 
@@ -204,7 +202,7 @@ function calc(s){
   const dot=+s.cena.dotacja||0;
   return {typ,kwp,mag,prod,vat,netto,brutto,vatKw:brutto-netto,dot,po:brutto-dot};
 }
-function autoTitle(s){if(s.typ==='mag')return s.inst.fal_wymiana?'Oferta na magazyn energii z wymianą falownika':'Oferta na magazyn energii do istniejącej instalacji PV';return s.inst.mag_on?'Oferta na instalację fotowoltaiczną z magazynem energii':'Oferta na instalację fotowoltaiczną';}
+function autoTitle(s){if(s.typ==='mag')return 'Oferta na montaż magazynu energii';return s.inst.mag_on?'Oferta na instalację fotowoltaiczną z magazynem energii':'Oferta na instalację fotowoltaiczną';}
 function addDays(iso,d){const t=new Date(iso+'T12:00:00');t.setDate(t.getDate()+(+d||0));return t;}
 function plDate(x){const t=x instanceof Date?x:new Date(x+'T12:00:00');return t.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'});}
 const GOLD='#b8962e',GOLDD='#8a6d17',TINT='#f7f0d9',INK='#1d2226',MUTED='#6a6f68',LINE='#e2ddcf';
@@ -277,12 +275,24 @@ function buildDoc(s){
     {stack:[{text:'Ofertę przygotował',fontSize:8,color:MUTED},{text:f.osoba||'',bold:true,margin:[0,2,0,0]},{text:f.tel?('tel. '+f.tel):'',fontSize:9}]},
     {stack:[{canvas:[{type:'line',x1:0,y1:28,x2:200,y2:28,lineWidth:0.6,lineColor:MUTED,dash:{length:2}}]},{text:'data i podpis Zamawiającego',fontSize:8,color:MUTED,margin:[0,3,0,0]}],width:200}
   ],margin:[0,26,0,0],unbreakable:true};
+  let content=[head,rule,...title,parties,kpiRow,H('Skład zestawu'),sklad,...zakresBlock,{stack:cena,unbreakable:true},...gwBlock,...warBlock,...uw,...zalBlock,sign];
+  if(c.typ==='mag'){
+    const rows=[
+      ['Falownik do zamontowania',[i.fal_model,i.fal_opis].filter(Boolean).join('\n')],
+      ['Magazyn energii',[i.mag_model,(i.mag_kwh?'pojemność '+kwh(c.mag)+' kWh':'')+((+i.mag_ilosc>1)?' ('+i.mag_ilosc+' × '+kwh(i.mag_kwh)+' kWh)':'')].filter(Boolean).join('\n')],
+      ['Zabezpieczenia',i.zab],['Zasilanie rezerwowe',i.backup],['Uzgodnienie ppoż.',i.ppoz]
+    ].filter(r=>r[1]&&String(r[1]).trim());
+    const tab={table:{widths:[150,'*'],body:rows.map(r=>[{text:r[0],bold:true},r[1]])},layout:{hLineWidth:(n,node)=>(n>0&&n<node.table.body.length)?0.5:0,vLineWidth:()=>0,hLineColor:()=>LINE,paddingTop:()=>7,paddingBottom:()=>7,paddingLeft:()=>8,paddingRight:()=>8},fontSize:10,margin:[0,0,0,14]};
+    const klientM={table:{widths:['*'],body:[[{stack:[lab('Zamawiający'),...klientStack,...(k.miejsce?[{text:'Miejsce montażu: '+k.miejsce,fontSize:9.5}]:[])],fillColor:TINT}]]},layout:{hLineWidth:()=>0,vLineWidth:()=>0,paddingLeft:()=>10,paddingRight:()=>10,paddingTop:()=>8,paddingBottom:()=>8},margin:[0,0,0,14]};
+    const info=w.uwagi&&w.uwagi.trim()?[H('Informacje dodatkowe'),{text:w.uwagi,fontSize:9.5,lineHeight:1.25}]:[];
+    content=[head,rule,...title,klientM,H('Zakres oferty'),tab,{stack:cena,unbreakable:true},...info,...zalBlock,sign];
+  }
   return {
     pageSize:'A4',pageMargins:[40,36,40,48],
     info:{title:(s.oferta.tytul||autoTitle(s))+' '+(s.oferta.nr||''),author:f.nazwa||''},
     defaultStyle:{font:'Roboto',fontSize:10,color:INK,lineHeight:1.15},
     footer:(cur,tot)=>({margin:[40,14,40,0],columns:[{text:[f.nazwa,f.tel&&('tel. '+f.tel),f.email].filter(Boolean).join('  ·  '),fontSize:7.5,color:MUTED},{text:cur+' / '+tot,alignment:'right',fontSize:7.5,color:MUTED,width:50}]}),
-    content:[head,rule,...title,parties,kpiRow,H('Skład zestawu'),sklad,...zakresBlock,{stack:cena,unbreakable:true},...gwBlock,...warBlock,...uw,...zalBlock,sign]
+    content
   };
 }
 /*BUILD_END*/
@@ -302,7 +312,7 @@ function newOffer(){return{
   id:uid(),typ:'pv',
   oferta:{tytul:'',nr:nextNr(),data:today(),waznosc:14},
   klient:{nazwa:'',adres:'',tel:'',email:'',miejsce:''},
-  inst:{montaz:'Dach skośny',uzysk:1000,pan_model:'Jinko Solar JKM550M-72HL4-V Silver Frame',pan_wp:550,pan_ilosc:16,fal_model:'Deye SUN-8K-SG04LP3-EU',fal_opis:'falownik hybrydowy, 3-fazowy, 8 kW',mag_on:true,mag_model:'Power Lab LiFePO4 51,2 V 200 Ah',mag_kwh:15.5,mag_ilosc:1,konstr:'Śruby dwugwintowe dokrokwiowe + aluminiowe szyny montażowe',mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:''},
+  inst:{montaz:'Dach skośny',uzysk:1000,pan_model:'Jinko Solar JKM550M-72HL4-V Silver Frame',pan_wp:550,pan_ilosc:16,fal_model:'Deye SUN-8K-SG04LP3-EU',fal_opis:'falownik hybrydowy, 3-fazowy, 8 kW',mag_on:true,mag_model:'Power Lab LiFePO4 51,2 V 200 Ah',mag_kwh:15.5,mag_ilosc:1,konstr:'Śruby dwugwintowe dokrokwiowe + aluminiowe szyny montażowe',mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy'},
   dodatki:JSON.parse(JSON.stringify(DOD_PV)),
   zakres:ZAKRES.map(t=>({tekst:t,on:true})),
   cena:{kwota:49700,tryb:'brutto',vat:8,dotacja:23000,program:'Mój Prąd'},
@@ -312,7 +322,7 @@ function newOffer(){return{
 };}
 let firma={...defFirma,...ls.get(LS_FIRMA,{})};
 let S=ls.get(LS_CUR,null)||newOffer();
-function migrate(o){o.typ=o.typ||'pv';o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',...o.inst};return o;}
+function migrate(o){o.typ=o.typ||'pv';o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
 migrate(S);
 const full=()=>({...S,firma,zalList:(typeof LIB!=='undefined'?selectedAtt():[]).map(a=>({label:'Karta katalogowa – '+katLabel(a.kat).toLowerCase(),nazwa:a.label||a.name.replace(/\.[^.]+$/,'')}))});
 
@@ -369,7 +379,8 @@ function vis(){const m=S.typ==='mag';
   document.querySelectorAll('.pvonly').forEach(e=>e.hidden=m);
   document.querySelectorAll('.magonly').forEach(e=>e.hidden=!m);
   document.querySelectorAll('.mag').forEach(e=>e.hidden=!(m||S.inst.mag_on));
-  document.querySelectorAll('.falon').forEach(e=>e.hidden=m&&!S.inst.fal_wymiana);}
+  document.querySelectorAll('.mag2').forEach(e=>e.hidden=m||!S.inst.mag_on);
+  document.querySelector('.pvsum').textContent=m?'Informacje dodatkowe':'Warunki i uwagi';}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function updateCalc(){const c=calc(full());
   document.getElementById('calcInst').innerHTML=c.typ==='mag'?`<span>Magazyn: <b>${kwh(c.mag)} kWh</b></span>${c.kwp?`<span>Istniejąca PV: <b>${plNum(c.kwp,2)} kWp</b></span>`:''}`:`<span>Moc: <b>${plNum(c.kwp,2)} kWp</b></span>${S.inst.mag_on?`<span>Magazyn: <b>${kwh(c.mag)} kWh</b></span>`:''}<span>Produkcja: <b>≈ ${plNum(c.prod,0)} kWh/rok</b></span>`;
@@ -453,7 +464,6 @@ document.getElementById('x_typ').addEventListener('change',e=>{const t=e.target.
   if(t==='mag'){if(sameList(S.zakres,zPV))S.zakres=zMAG;if(sameList(S.dodatki,DOD_PV))S.dodatki=JSON.parse(JSON.stringify(DOD_MAG));}
   else{if(sameList(S.zakres,zMAG))S.zakres=zPV;if(sameList(S.dodatki,DOD_MAG))S.dodatki=JSON.parse(JSON.stringify(DOD_PV));}
   S.typ=t;renderRows();changed();toast(t==='mag'?'Oferta: magazyn do istniejącej instalacji':'Oferta: nowa instalacja PV');});
-document.getElementById('i_fal_wymiana').addEventListener('change',()=>{vis();});
 document.getElementById('i_mag_on').addEventListener('change',()=>{S.inst.mag_on=document.getElementById('i_mag_on').checked;renderRows();changed();});
 bindFields();fillFields();loadLib().then(preview);
 window.addEventListener('resize',()=>{clearTimeout(tmr);tmr=setTimeout(preview,400)});
