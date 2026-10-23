@@ -127,10 +127,12 @@ textarea{min-height:70px;resize:vertical}
   <label class="pvonly">Liczba modułów<input id="i_pan_ilosc" type="number" min="0"></label>
   <label class="full falon">Falownik – model<input id="i_fal_model"></label>
   <label class="full falon">Falownik – opis<input id="i_fal_opis" placeholder="np. hybrydowy, 3-fazowy, 8 kW"></label>
+  <label class="inline full falon"><input type="checkbox" id="i_fal_eu"> Falownik hybrydowy wyprodukowany w UE</label>
   <label class="inline full pvonly"><input type="checkbox" id="i_mag_on"> Magazyn energii w ofercie</label>
   <label class="full mag">Magazyn – model<input id="i_mag_model"></label>
   <label class="mag">Pojemność 1 szt. (kWh)<input id="i_mag_kwh" type="number" step="0.1"></label>
   <label class="mag">Liczba szt.<input id="i_mag_ilosc" type="number" min="1"></label>
+  <label class="inline full mag"><input type="checkbox" id="i_mag_eu"> Magazyn energii wyprodukowany w UE</label>
   <label class="full pvonly">Konstrukcja<input id="i_konstr"></label>
   <label class="full pvonly">System EMS / sterownik – model<input id="i_ems_model" placeholder="opcjonalnie, np. sterownik EMS z licznikiem"></label>
   <label class="full pvonly">System EMS – opis<input id="i_ems_opis" placeholder="np. zarządzanie ładowaniem wg taryfy dynamicznej"></label>
@@ -155,8 +157,14 @@ textarea{min-height:70px;resize:vertical}
   <label>Kwota<input id="c_kwota" type="number" step="0.01"></label>
   <label>Podana jako<select id="c_tryb"><option value="brutto">brutto</option><option value="netto">netto</option></select></label>
   <label>Stawka VAT<select id="c_vat"><option value="8">8% (budynek mieszkalny)</option><option value="23">23%</option><option value="0">zw. / 0%</option></select></label>
-  <label>Dofinansowanie (zł)<input id="c_dotacja" type="number" step="0.01" placeholder="0 = bez dotacji"></label>
-  <label class="full">Program dofinansowania<input id="c_program" placeholder="np. Mój Prąd"></label>
+  <label class="full">Dofinansowanie<select id="c_dot_tryb"><option value="reczne">Wpisuję kwotę ręcznie</option><option value="pme2">Wylicz wg programu Przydomowe magazyny energii (PME2)</option></select></label>
+  <label class="pme">Umowa z dostawcą energii<select id="c_rozl"><option value="nb">net-billing (limit 16 000 zł)</option><option value="nm">net-metering (limit 8 000 zł)</option></select></label>
+  <label class="pme">Moc instalacji PV klienta (kWp)<input id="c_pv_kwp" type="number" step="0.01" placeholder="do sprawdzenia warunku 2×"></label>
+  <label class="pme">Koszt magazynu brutto (zakup + montaż)<input id="c_koszt_mag" type="number" step="0.01" placeholder="bez falownika i EMS"></label>
+  <label class="pme">Koszt falownika brutto<input id="c_koszt_fal" type="number" step="0.01" placeholder="jeśli w ofercie"></label>
+  <div class="status pme" id="pmeBox"></div>
+  <label class="nopme">Dofinansowanie (zł)<input id="c_dotacja" type="number" step="0.01" placeholder="0 = bez dotacji"></label>
+  <label class="full nopme">Program dofinansowania<input id="c_program" placeholder="np. Mój Prąd"></label>
   <div class="calc" id="calcCena"></div>
 </div></details>
 
@@ -215,8 +223,33 @@ function calc(s){
   const vat=+s.cena.vat||0, k=+s.cena.kwota||0;
   const netto=s.cena.tryb==='netto'?k:k/(1+vat/100);
   const brutto=s.cena.tryb==='netto'?k*(1+vat/100):k;
-  const dot=+s.cena.dotacja||0;
-  return {typ,kwp,mag,prod,vat,netto,brutto,vatKw:brutto-netto,dot,po:brutto-dot};
+  const pme=s.cena.dot_tryb==='pme2'?pme2(s,{kwp,mag,brutto}):null;
+  const dot=pme?pme.total:(+s.cena.dotacja||0);
+  return {typ,kwp,mag,prod,vat,netto,brutto,vatKw:brutto-netto,dot,po:brutto-dot,pme};
+}
+// Zasady wg przydomowemagazyny.gov.pl/o-programie (nabór od 20.10.2026)
+function pme2(s,{kwp,mag,brutto}){
+  const c=s.cena,i=s.inst,typ=s.typ||'pv';
+  const pv=typ==='mag'?(+c.pv_kwp||0):(+c.pv_kwp||kwp);
+  const kFal=+c.koszt_fal||0;
+  const kMag=c.koszt_mag!==''&&c.koszt_mag!=null?(+c.koszt_mag||0):Math.max(0,brutto-kFal);
+  const magOn=typ==='mag'||i.mag_on;
+  const warn=[],info=[];
+  if(!magOn) return {total:0,dotMag:0,bonus:0,kMag,kFal,warn:['W ofercie nie ma magazynu energii – dofinansowanie PME2 dotyczy magazynu.'],info,pv};
+  if(mag<10) warn.push('Pojemność '+kwh(mag)+' kWh – program wymaga min. 10 kWh.');
+  if(pv>0&&mag<2*pv) warn.push('Pojemność musi wynosić co najmniej 2 × moc PV: '+kwh(2*pv)+' kWh przy '+plNum(pv,2)+' kWp (jest '+kwh(mag)+' kWh).');
+  if(!pv) info.push('Wpisz moc instalacji PV, żeby sprawdzić warunek 2 × moc PV.');
+  if(mag>0&&kMag/mag>3000) warn.push('Cena magazynu '+plNum(kMag/mag,0)+' zł/kWh – limit programu to 3 000 zł/kWh (bez falownika i EMS).');
+  const capKwh=800*mag, capRozl=c.rozl==='nm'?8000:16000;
+  const dotMag=Math.min(0.3*kMag,capKwh,capRozl);
+  const lim=dotMag===0.3*kMag?'30% kosztów':dotMag===capKwh?'limit 800 zł/kWh':'limit '+plNum(capRozl,0)+' zł ('+(c.rozl==='nm'?'net-metering':'net-billing')+')';
+  let bonus=0,bonusZ='';
+  const bMag=i.mag_eu?Math.min(2000,0.5*kMag):0, bFal=i.fal_eu&&(typ==='mag'||i.fal_model)?Math.min(2000,0.5*kFal):0;
+  if(i.fal_eu&&!kFal) info.push('Wpisz koszt falownika, żeby policzyć premię za falownik z UE.');
+  if(bMag>=bFal&&bMag>0){bonus=bMag;bonusZ='magazyn wyprodukowany w UE';} else if(bFal>0){bonus=bFal;bonusZ='falownik hybrydowy wyprodukowany w UE';}
+  const total=Math.round(Math.min(dotMag+bonus,19000)*100)/100;
+  info.push('Warunki: EMS sterujący ładowaniem i rozładowaniem oraz praca wyspowa (zasilanie rezerwowe), montaż na stałe pod adresem instalacji PV.');
+  return {total,dotMag,lim,bonus,bonusZ,kMag,kFal,warn,info,pv};
 }
 function autoTitle(s){if(s.typ==='mag')return 'Oferta na montaż magazynu energii';return s.inst.mag_on?'Oferta na instalację fotowoltaiczną z magazynem energii':'Oferta na instalację fotowoltaiczną';}
 function addDays(iso,d){const t=new Date(iso+'T12:00:00');t.setDate(t.getDate()+(+d||0));return t;}
@@ -258,10 +291,10 @@ function buildDoc(s){
   const H=(t)=>({text:t.toUpperCase(),fontSize:9,bold:true,color:GOLDD,characterSpacing:1.2,margin:[0,6,0,6]});
   const items=c.typ==='mag'?[]:[
     ['Moduły fotowoltaiczne',[i.pan_model,i.pan_wp&&('moc modułu '+i.pan_wp+' Wp')].filter(Boolean).join('\n'),(i.pan_ilosc||0)+' szt.'],
-    ['Falownik',[i.fal_model,i.fal_opis].filter(Boolean).join('\n'),'1 szt.'],
+    ['Falownik',[i.fal_model,i.fal_opis,i.fal_eu&&'produkcja UE'].filter(Boolean).join('\n'),'1 szt.'],
   ];
-  if(c.typ==='mag'&&i.fal_wymiana) items.push(['Falownik hybrydowy',[i.fal_model,i.fal_opis].filter(Boolean).join('\n'),'1 szt.']);
-  if(c.typ==='mag'||i.mag_on) items.push(['Magazyn energii',[i.mag_model,i.mag_kwh&&('pojemność '+kwh(i.mag_kwh)+' kWh'+((+i.mag_ilosc>1)?' / szt.':''))].filter(Boolean).join('\n'),(i.mag_ilosc||1)+' szt.']);
+  if(c.typ==='mag'&&i.fal_wymiana) items.push(['Falownik hybrydowy',[i.fal_model,i.fal_opis,i.fal_eu&&'produkcja UE'].filter(Boolean).join('\n'),'1 szt.']);
+  if(c.typ==='mag'||i.mag_on) items.push(['Magazyn energii',[i.mag_model,i.mag_kwh&&('pojemność '+kwh(i.mag_kwh)+' kWh'+((+i.mag_ilosc>1)?' / szt.':'')),i.mag_eu&&'produkcja UE'].filter(Boolean).join('\n'),(i.mag_ilosc||1)+' szt.']);
   if(c.typ!=='mag') items.push(['Konstrukcja montażowa',i.konstr||'','1 kpl.']);
   if((c.typ==='mag'||i.mag_on)&&i.mag_montaz) items.push(['Montaż magazynu',i.mag_montaz,'']);
   if(i.ems_model&&i.ems_model.trim()) items.push(['System zarządzania energią (EMS)',[i.ems_model,i.ems_opis].filter(Boolean).join('\n'),'1 kpl.']);
@@ -273,10 +306,12 @@ function buildDoc(s){
   const zakresBlock=zakres.length?[H('Zakres prac w cenie'),{columns:[{ul:zakres.slice(0,half),markerColor:GOLD},{ul:zakres.slice(half),markerColor:GOLD}],columnGap:14,fontSize:9.5,margin:[0,0,0,14]}]:[];
   const pr=(a,b,o={})=>[{text:a,...o},{text:b,alignment:'right',...o}];
   const cenaBody=[pr('Wartość netto',zl(c.netto)),pr('VAT '+c.vat+'%',zl(c.vatKw)),pr('Wartość brutto',zl(c.brutto),{bold:true,fontSize:11})];
-  if(c.dot>0){cenaBody.push(pr('Szacowane dofinansowanie'+(s.cena.program?' – '+s.cena.program:''),'– '+zl(c.dot),{color:'#2f7a4a'}));
+  const prog=c.pme?'Przydomowe magazyny energii':s.cena.program;
+  if(c.dot>0){cenaBody.push(pr('Szacowane dofinansowanie'+(prog?' – '+prog:''),'– '+zl(c.dot),{color:'#2f7a4a'}));
     cenaBody.push(pr('Koszt po dofinansowaniu',zl(c.po),{bold:true,fontSize:13,fillColor:TINT}));}
   const cena=[H('Cena'),{table:{widths:['*',150],body:cenaBody},layout:{hLineWidth:(n,node)=>(n>0&&n<node.table.body.length)?0.5:0,vLineWidth:()=>0,hLineColor:()=>LINE,paddingTop:()=>6,paddingBottom:()=>6,paddingLeft:()=>8,paddingRight:()=>8},fontSize:10,margin:[0,0,0,4]}];
-  if(c.dot>0) cena.push({text:'Ostateczna kwota dofinansowania zależy od decyzji operatora programu.',fontSize:8,italics:true,color:MUTED,margin:[0,2,0,0]});
+  if(c.pme&&c.dot>0) cena.push({text:'Szacunek wg zasad programu Przydomowe magazyny energii, umowa '+(s.cena.rozl==='nm'?'net-metering':'net-billing')+': '+zl(c.pme.dotMag)+' na magazyn ('+c.pme.lim+')'+(c.pme.bonus?' + '+zl(c.pme.bonus)+' premii ('+c.pme.bonusZ+')':'')+'.',fontSize:8,color:MUTED,margin:[0,4,0,0]});
+  if(c.dot>0) cena.push({text:'Kwota dofinansowania jest szacunkowa – ostateczną wysokość ustala operator programu po rozpatrzeniu wniosku.',fontSize:8,italics:true,color:MUTED,margin:[0,2,0,0]});
   const gw=(s.gwar||[]).filter(g=>g.el&&g.okres&&g.el.trim()&&g.okres.trim());
   const gwBlock=gw.length?[{stack:[H('Gwarancje'),{table:{widths:['*',180],body:gw.map(g=>[g.el,{text:g.okres,alignment:'right',bold:true}])},layout:{hLineWidth:(n,node)=>(n>0&&n<node.table.body.length)?0.5:0,vLineWidth:()=>0,hLineColor:()=>LINE,paddingTop:()=>4,paddingBottom:()=>4,paddingLeft:()=>8,paddingRight:()=>8},fontSize:9.5}],unbreakable:true}]:[];
   const w=s.warunki, war=[];
@@ -294,8 +329,8 @@ function buildDoc(s){
   let content=[head,rule,...title,parties,kpiRow,H('Skład zestawu'),sklad,...zakresBlock,{stack:cena,unbreakable:true},...gwBlock,...warBlock,...uw,...zalBlock,sign];
   if(c.typ==='mag'){
     const rows=[
-      ['Falownik do zamontowania',[i.fal_model,i.fal_opis].filter(Boolean).join('\n')],
-      ['Magazyn energii',[i.mag_model,(i.mag_kwh?'pojemność '+kwh(c.mag)+' kWh':'')+((+i.mag_ilosc>1)?' ('+i.mag_ilosc+' × '+kwh(i.mag_kwh)+' kWh)':'')].filter(Boolean).join('\n')],
+      ['Falownik do zamontowania',[i.fal_model,i.fal_opis,i.fal_eu&&'produkcja UE'].filter(Boolean).join('\n')],
+      ['Magazyn energii',[i.mag_model,(i.mag_kwh?'pojemność '+kwh(c.mag)+' kWh':'')+((+i.mag_ilosc>1)?' ('+i.mag_ilosc+' × '+kwh(i.mag_kwh)+' kWh)':''),i.mag_eu&&'produkcja UE'].filter(Boolean).join('\n')],
       ['Miejsce montażu',i.miejsce_mont],['Przewody magazyn – falownik',i.kabel],
       ['Zabezpieczenia',i.zab],['Zasilanie rezerwowe',i.backup],['Uzgodnienie ppoż.',i.ppoz]
     ].filter(r=>r[1]&&String(r[1]).trim());
@@ -332,14 +367,14 @@ function newOffer(){return{
   inst:{montaz:'Dach skośny',uzysk:1000,pan_model:'Jinko Solar JKM550M-72HL4-V Silver Frame',pan_wp:550,pan_ilosc:16,fal_model:'Deye SUN-8K-SG04LP3-EU',fal_opis:'falownik hybrydowy, 3-fazowy, 8 kW',mag_on:true,mag_model:'Power Lab LiFePO4 51,2 V 200 Ah',mag_kwh:15.5,mag_ilosc:1,konstr:'Śruby dwugwintowe dokrokwiowe + aluminiowe szyny montażowe',mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy'},
   dodatki:JSON.parse(JSON.stringify(DOD_PV)),
   zakres:ZAKRES.map(t=>({tekst:t,on:true})),
-  cena:{kwota:49700,tryb:'brutto',vat:8,dotacja:23000,program:'Mój Prąd'},
+  cena:{kwota:49700,tryb:'brutto',vat:8,dotacja:23000,program:'Mój Prąd',dot_tryb:'reczne',rozl:'nb',pv_kwp:'',koszt_mag:'',koszt_fal:''},
   gwar:[{el:'Moduły fotowoltaiczne – produkt',okres:''},{el:'Moduły fotowoltaiczne – liniowa gwarancja mocy',okres:''},{el:'Falownik',okres:''},{el:'Magazyn energii',okres:''},{el:'Wykonawstwo (montaż)',okres:''}],
   warunki:{realizacja:'do 6 tygodni od podpisania umowy',platnosc:'zaliczka 30% przy podpisaniu umowy, pozostała kwota po montażu',uwagi:''},
   zal:[]
 };}
 let firma={...defFirma,...ls.get(LS_FIRMA,{})};
 let S=ls.get(LS_CUR,null)||newOffer();
-function migrate(o){o.typ=o.typ||'pv';o.zmieniono=o.zmieniono||Date.parse(o.zapisano||'')||1;o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
+function migrate(o){o.typ=o.typ||'pv';o.cena={dot_tryb:'reczne',rozl:'nb',pv_kwp:'',koszt_mag:'',koszt_fal:'',...o.cena};o.inst={mag_eu:false,fal_eu:false,...o.inst};o.zmieniono=o.zmieniono||Date.parse(o.zapisano||'')||1;o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
 migrate(S);
 const full=()=>({...S,firma,zalList:(typeof LIB!=='undefined'?selectedAtt():[]).map(a=>({label:'Karta katalogowa – '+katLabel(a.kat).toLowerCase(),nazwa:a.label||a.name.replace(/\.[^.]+$/,'')}))});
 
@@ -397,10 +432,14 @@ function vis(){const m=S.typ==='mag';
   document.querySelectorAll('.magonly').forEach(e=>e.hidden=!m);
   document.querySelectorAll('.mag').forEach(e=>e.hidden=!(m||S.inst.mag_on));
   document.querySelectorAll('.mag2').forEach(e=>e.hidden=m||!S.inst.mag_on);
+  const pm=S.cena.dot_tryb==='pme2';document.querySelectorAll('.pme').forEach(e=>e.hidden=!pm);document.querySelectorAll('.nopme').forEach(e=>e.hidden=pm);
   document.querySelector('.pvsum').textContent=m?'Informacje dodatkowe':'Warunki i uwagi';}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function updateCalc(){const c=calc(full());
   document.getElementById('calcInst').innerHTML=c.typ==='mag'?`<span>Magazyn: <b>${kwh(c.mag)} kWh</b></span>${c.kwp?`<span>Istniejąca PV: <b>${plNum(c.kwp,2)} kWp</b></span>`:''}`:`<span>Moc: <b>${plNum(c.kwp,2)} kWp</b></span>${S.inst.mag_on?`<span>Magazyn: <b>${kwh(c.mag)} kWh</b></span>`:''}<span>Produkcja: <b>≈ ${plNum(c.prod,0)} kWh/rok</b></span>`;
+  const pb=document.getElementById('pmeBox');if(c.pme){const p=c.pme;
+    pb.innerHTML=`<b>Szacunkowe dofinansowanie: ${zl(c.dot)}</b><br>Magazyn: ${zl(p.dotMag)}${p.lim?' ('+p.lim+')':''}${p.bonus?`<br>Premia: ${zl(p.bonus)} (${p.bonusZ})`:''}${(S.cena.koszt_mag===''||S.cena.koszt_mag==null)?`<br>Koszt magazynu przyjęty jako cena brutto${p.kFal?' minus falownik':''}: ${zl(p.kMag)}`:''}`+
+    (p.warn.length?'<br><span style="color:var(--warn)">⚠ '+p.warn.map(esc).join('<br>⚠ ')+'</span>':'')+(p.info.length?'<br><span style="color:var(--muted)">'+p.info.map(esc).join('<br>')+'</span>':'');}
   document.getElementById('calcCena').innerHTML=`<span>Netto: <b>${zl(c.netto)}</b></span><span>Brutto: <b>${zl(c.brutto)}</b></span>${c.dot>0?`<span>Po dotacji: <b>${zl(c.po)}</b></span>`:''}`;
   document.getElementById('barNr').textContent=(S.oferta.nr||'')+(S.klient.nazwa?' · '+S.klient.nazwa:'');
   vis();
