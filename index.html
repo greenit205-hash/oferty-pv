@@ -22,6 +22,9 @@ header.bar img{width:38px;height:38px}
 header.bar h1{font:600 17px var(--f-display);margin:0;letter-spacing:.01em}
 header.bar .nr{font:400 13px var(--f-display);color:#d9c58a}
 header.bar .sp{flex:1}
+.chip{font:500 12px var(--f-display);padding:5px 10px;border-radius:999px;border:1px solid #4a5056;background:transparent;color:#cfd3cc}
+.chip.ok{color:#9fd8b1;border-color:#3d6b4c}.chip.warn{color:#f0c27a;border-color:#7a5a23}.chip.err{color:#f29b80;border-color:#7a3a28}
+.status{grid-column:1/-1;font-size:13px;padding:8px 10px;border-radius:5px;background:var(--gold-tint)}
 button,.btn{font:500 14px var(--f-display);border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;padding:8px 12px;cursor:pointer}
 button:hover{border-color:var(--gold)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
@@ -81,6 +84,7 @@ textarea{min-height:70px;resize:vertical}
   <img id="barLogo" alt="">
   <div><h1>Oferty PV</h1><div class="nr" id="barNr"></div></div>
   <span class="sp"></span>
+  <button id="syncChip" class="chip" title="Synchronizuj teraz">Dysk: wyłączony</button>
   <button id="bNew">Nowa</button>
   <button id="bDup">Kopiuj jako nową</button>
   <button id="bList">Zapisane</button>
@@ -164,6 +168,15 @@ textarea{min-height:70px;resize:vertical}
   <label>Rodzaj karty<select id="zalKat"><option value="panele">Moduły PV</option><option value="falownik">Falownik</option><option value="magazyn">Magazyn energii</option><option value="ems">System EMS</option><option value="inne">Inne</option></select></label>
   <label>Plik (PDF, JPG, PNG)<input id="zalFile" type="file" accept="application/pdf,image/*" multiple></label>
   <div class="lib" id="lib"></div>
+</div></details>
+
+<details id="syncSec"><summary>Synchronizacja (Dysk Google)</summary><div class="grid">
+  <p class="hint">Oferty, karty katalogowe i dane firmy zapisują się w folderze „Oferty PV” na Twoim Dysku Google, więc masz je na telefonie, laptopie i PC. Bez internetu aplikacja działa dalej, a zmiany wyśle przy następnym połączeniu.</p>
+  <label class="full">Adres skryptu (kończy się na /exec)<input id="s_url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+  <label class="full">Hasło<input id="s_haslo" type="password" autocomplete="off"></label>
+  <label class="inline full"><input type="checkbox" id="s_pdf"> Zapisuj pobrane PDF-y w folderze „Oferty PV/PDF”</label>
+  <div class="full" style="display:flex;gap:8px;flex-wrap:wrap"><button id="sConnect">Połącz i synchronizuj</button><button id="sOff">Odłącz to urządzenie</button></div>
+  <div class="status" id="sStatus">Synchronizacja wyłączona na tym urządzeniu.</div>
 </div></details>
 
 <details><summary>Dane firmy</summary><div class="grid">
@@ -313,7 +326,7 @@ const DOD_MAG=[{nazwa:'Zabezpieczenia AC i DC oraz przewody bateryjne',ilosc:'1 
 const ZAKRES=['Projekt i dobór instalacji','Dostawa materiałów','Montaż i uruchomienie instalacji','Zgłoszenie mikroinstalacji do operatora sieci','Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż.','Przygotowanie wniosku o dofinansowanie','Konfiguracja aplikacji do monitoringu','Instruktaż obsługi dla użytkownika'];
 function nextNr(){const d=new Date(),p=`SE/${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/`;const all=Object.values(ls.get(LS_OF,{}));const n=all.filter(o=>(o.oferta.nr||'').startsWith(p)).length+1;return p+String(n).padStart(2,'0');}
 function newOffer(){return{
-  id:uid(),typ:'pv',
+  id:uid(),typ:'pv',zmieniono:Date.now(),
   oferta:{tytul:'',nr:nextNr(),data:today(),waznosc:14},
   klient:{nazwa:'',adres:'',tel:'',email:'',miejsce:''},
   inst:{montaz:'Dach skośny',uzysk:1000,pan_model:'Jinko Solar JKM550M-72HL4-V Silver Frame',pan_wp:550,pan_ilosc:16,fal_model:'Deye SUN-8K-SG04LP3-EU',fal_opis:'falownik hybrydowy, 3-fazowy, 8 kW',mag_on:true,mag_model:'Power Lab LiFePO4 51,2 V 200 Ah',mag_kwh:15.5,mag_ilosc:1,konstr:'Śruby dwugwintowe dokrokwiowe + aluminiowe szyny montażowe',mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy'},
@@ -326,7 +339,7 @@ function newOffer(){return{
 };}
 let firma={...defFirma,...ls.get(LS_FIRMA,{})};
 let S=ls.get(LS_CUR,null)||newOffer();
-function migrate(o){o.typ=o.typ||'pv';o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
+function migrate(o){o.typ=o.typ||'pv';o.zmieniono=o.zmieniono||Date.parse(o.zapisano||'')||1;o.inst={mag_montaz:'',ist_kwp:'',ist_falownik:'',ist_opis:'',fal_wymiana:true,ems_model:'',ems_opis:'',zab:'Zabezpieczenia AC i DC, ochronniki przepięciowe, rozdzielnica',backup:'',miejsce_mont:'',kabel:'',ppoz:'Uzgodnienie z rzeczoznawcą ds. zabezpieczeń ppoż. – po stronie wykonawcy',...o.inst};return o;}
 migrate(S);
 const full=()=>({...S,firma,zalList:(typeof LIB!=='undefined'?selectedAtt():[]).map(a=>({label:'Karta katalogowa – '+katLabel(a.kat).toLowerCase(),nazwa:a.label||a.name.replace(/\.[^.]+$/,'')}))});
 
@@ -349,7 +362,7 @@ function bindFields(){
     const grp=MAP[pre];
     const get=()=>grp==='firma'?firma:S[grp];
     el.addEventListener('input',()=>{const o=get();o[key]=el.type==='checkbox'?el.checked:el.type==='number'?(el.value===''?'':+el.value):el.value;
-      if(grp==='firma')ls.set(LS_FIRMA,firma);changed();});
+      if(grp==='firma'){firma.zmieniono=Date.now();ls.set(LS_FIRMA,firma);sync.soon();}changed(grp!=='firma');});
   });
 }
 function fillFields(){
@@ -392,7 +405,8 @@ function updateCalc(){const c=calc(full());
   document.getElementById('barNr').textContent=(S.oferta.nr||'')+(S.klient.nazwa?' · '+S.klient.nazwa:'');
   vis();
 }
-let tmr;function changed(){updateCalc();ls.set(LS_CUR,S);clearTimeout(tmr);tmr=setTimeout(preview,700);}
+let tmr,atmr;function changed(offerEdit=true){updateCalc();if(offerEdit){S.zmieniono=Date.now();S.edyt=true;}ls.set(LS_CUR,S);clearTimeout(tmr);tmr=setTimeout(preview,700);
+  if(offerEdit){clearTimeout(atmr);atmr=setTimeout(()=>{saveOffer(true)},2500);}}
 
 // ---------- PDF ----------
 function b64ToBytes(d){const b=atob(d.split(',').pop());const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
@@ -424,24 +438,27 @@ async function preview(){
 function fileName(){const n=(S.oferta.nr||'oferta').replace(/\//g,'-');const k=(S.klient.nazwa||'').trim().replace(/[\\/:*?"<>|]/g,'');return `Oferta ${n}${k?' - '+k:''}.pdf`;}
 function download(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 document.getElementById('bPdf').onclick=async()=>{if(!window.pdfMake)return toast('Biblioteki PDF się nie wczytały – sprawdź internet');
-  try{const b=await makePdf();saveOffer(true);download(b,fileName(),'application/pdf');toast('Pobrano: '+fileName());}catch(e){toast('Błąd: '+e.message)}};
+  try{const b=await makePdf();saveOffer(true);download(b,fileName(),'application/pdf');toast('Pobrano: '+fileName());
+    if(sync.on()&&sync.cfg.pdf){sync.api('zapiszPdf',{nazwa:fileName(),data:bytesToB64(b)}).then(()=>toast('PDF zapisany na Dysku: Oferty PV/PDF')).catch(e=>toast('PDF nie trafił na Dysk: '+e.message));}
+  }catch(e){toast('Błąd: '+e.message)}};
+function bytesToB64(u8){let s='';const c=0x8000;for(let i=0;i<u8.length;i+=c)s+=String.fromCharCode.apply(null,u8.subarray(i,i+c));return btoa(s);}
 
 // ---------- zapisywanie ofert ----------
-function saveOffer(quiet){const all=ls.get(LS_OF,{});S.zapisano=new Date().toISOString();all[S.id]=S;const ok=ls.set(LS_OF,all);if(!quiet)toast(ok?'Zapisano ofertę '+S.oferta.nr:'Nie udało się zapisać (pamięć przeglądarki)');}
+function saveOffer(quiet){clearTimeout(atmr);const all=ls.get(LS_OF,{});if(quiet&&!S.edyt&&!all[S.id])return;S.edyt=true;S.zapisano=new Date().toISOString();all[S.id]=S;const ok=ls.set(LS_OF,all);if(!quiet)toast(ok?'Zapisano ofertę '+S.oferta.nr:'Nie udało się zapisać (pamięć przeglądarki)');sync.pushOffer(S);}
 document.getElementById('bSave').onclick=()=>saveOffer();
 document.getElementById('bNew').onclick=()=>{saveOffer(true);S=newOffer();ls.set(LS_CUR,S);fillFields();preview();toast('Nowa oferta '+S.oferta.nr);};
 document.getElementById('bDup').onclick=()=>{saveOffer(true);const c=JSON.parse(JSON.stringify(S));c.id=uid();c.oferta.nr=nextNr();c.oferta.data=today();c.klient={nazwa:'',adres:'',tel:'',email:'',miejsce:''};delete c.zapisano;S=c;ls.set(LS_CUR,S);fillFields();preview();toast('Kopia jako '+S.oferta.nr+' – uzupełnij klienta');};
-document.getElementById('bList').onclick=()=>{const p=document.getElementById('panel');if(!p.hidden){p.hidden=true;return}renderList();p.hidden=false;};
-function renderList(){const p=document.getElementById('panel');const all=Object.values(ls.get(LS_OF,{})).sort((a,b)=>(b.zapisano||'').localeCompare(a.zapisano||''));
+document.getElementById('bList').onclick=()=>{const p=document.getElementById('panel');if(!p.hidden){p.hidden=true;return}renderList();p.hidden=false;sync.run().then(()=>{if(!p.hidden)renderList()});};
+function renderList(){const p=document.getElementById('panel');const all=Object.values(ls.get(LS_OF,{})).sort((a,b)=>(b.zmieniono||0)-(a.zmieniono||0));
   p.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><h2>Zapisane oferty (${all.length})</h2><button id="pClose">Zamknij</button></div>
   <div style="display:flex;gap:8px;margin:6px 0 10px;flex-wrap:wrap"><button id="pExp">Eksport kopii (.json)</button><label class="btn" style="flex-direction:row">Import<input id="pImp" type="file" accept="application/json" hidden></label></div>`+
   (all.length?'':'<p class="hint">Nie masz jeszcze zapisanych ofert. Użyj „Zapisz” albo „Pobierz PDF” – oferta zapisze się sama.</p>')+
   all.map(o=>{const c=calc({...o,firma});return `<div class="of"><div><b>${esc(o.oferta.nr)} · ${esc(o.klient.nazwa||'bez klienta')}</b><small>${plDate(o.oferta.data)} · ${c.typ==='mag'?'Magazyn '+kwh(c.mag)+' kWh':plNum(c.kwp,2)+' kWp'+(o.inst.mag_on?' + '+kwh(c.mag)+' kWh':'')} · ${zl(c.brutto)}</small></div><button data-open="${o.id}">Otwórz</button><button data-del="${o.id}">Usuń</button></div>`}).join('');
   p.querySelector('#pClose').onclick=()=>p.hidden=true;
   p.querySelector('#pExp').onclick=()=>download(JSON.stringify({firma:{...firma},oferty:ls.get(LS_OF,{})},null,1),'oferty-smart-energy-'+today()+'.json','application/json');
-  p.querySelector('#pImp').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const all=ls.get(LS_OF,{});Object.assign(all,d.oferty||{});ls.set(LS_OF,all);if(d.firma){firma={...firma,...d.firma};ls.set(LS_FIRMA,firma)}renderList();fillFields();toast('Zaimportowano oferty')}catch(err){toast('To nie jest plik kopii ofert')}};
+  p.querySelector('#pImp').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const all=ls.get(LS_OF,{});Object.values(d.oferty||{}).forEach(o=>{migrate(o);if(!all[o.id]||(all[o.id].zmieniono||0)<o.zmieniono)all[o.id]=o;});ls.set(LS_OF,all);sync.soon();if(d.firma){firma={...firma,...d.firma};ls.set(LS_FIRMA,firma)}renderList();fillFields();toast('Zaimportowano oferty')}catch(err){toast('To nie jest plik kopii ofert')}};
   p.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{saveOffer(true);S=migrate(ls.get(LS_OF,{})[b.dataset.open]);ls.set(LS_CUR,S);fillFields();preview();p.hidden=true;});
-  p.querySelectorAll('[data-del]').forEach(b=>{b.onclick=()=>{if(b.dataset.armed){const all=ls.get(LS_OF,{});delete all[b.dataset.del];ls.set(LS_OF,all);renderList();}else{b.dataset.armed=1;b.textContent='Na pewno?';b.style.color='var(--warn)';}}});
+  p.querySelectorAll('[data-del]').forEach(b=>{b.onclick=()=>{if(b.dataset.armed){const id=b.dataset.del;const all=ls.get(LS_OF,{});delete all[id];ls.set(LS_OF,all);sync.deleteOffer(id);if(S.id===id){S=newOffer();ls.set(LS_CUR,S);fillFields();preview();}renderList();}else{b.dataset.armed=1;b.textContent='Na pewno?';b.style.color='var(--warn)';}}});
 }
 
 // ---------- załączniki ----------
@@ -449,16 +466,16 @@ function readAs(file,how){return new Promise((res,rej)=>{const r=new FileReader(
 async function normImage(file){const url=await readAs(file,'readAsDataURL');if(/image\/(png|jpeg)/.test(file.type)&&file.size<2.5e6)return{type:file.type,data:url};
   const img=new Image();img.src=url;await img.decode();const sc=Math.min(1,1800/Math.max(img.width,img.height));const cv=document.createElement('canvas');cv.width=img.width*sc;cv.height=img.height*sc;const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);ctx.drawImage(img,0,0,cv.width,cv.height);return{type:'image/jpeg',data:cv.toDataURL('image/jpeg',0.85)};}
 document.getElementById('zalFile').onchange=async e=>{for(const f of e.target.files){try{const o=f.type==='application/pdf'?{type:f.type,data:await readAs(f,'readAsDataURL')}:await normImage(f);
-  const it={id:uid(),name:f.name,label:f.name.replace(/\.[^.]+$/,''),kat:document.getElementById('zalKat').value,size:f.size,...o};await idb.put(it);LIB.push(it);S.zal.push(it.id);}catch(err){toast('Nie udało się wczytać: '+f.name)}}
+  const it={id:uid(),name:f.name,label:f.name.replace(/\.[^.]+$/,''),kat:document.getElementById('zalKat').value,size:f.size,zmieniono:Date.now(),...o};await idb.put(it);LIB.push(it);S.zal.push(it.id);sync.pushKarta(it);}catch(err){toast('Nie udało się wczytać: '+f.name)}}
   e.target.value='';renderLib();changed();};
 function renderLib(){const l=document.getElementById('lib');if(!LIB.length){l.innerHTML='<p class="hint">Biblioteka jest pusta. Wybierz rodzaj karty i wgraj plik.</p>';return}
   l.innerHTML=KAT.map(([k,lbl])=>{const its=LIB.filter(a=>(a.kat||'inne')===k);if(!its.length)return '';
     return `<p class="hint" style="margin-top:6px;font-weight:600;color:var(--gold-deep)">${lbl}</p>`+its.map(a=>`<div class="it"><input type="checkbox" data-z="${a.id}" ${S.zal.includes(a.id)?'checked':''} aria-label="Dołącz do oferty"><input data-zname="${a.id}" value="${esc(a.label||a.name)}" aria-label="Nazwa w ofercie" style="flex:1;min-width:0;padding:4px 6px;font-size:14px"><small>${a.type==='application/pdf'?'PDF':'obraz'} · ${Math.round(a.size/1024)} kB</small><button data-zdel="${a.id}">Usuń</button></div>`).join('');}).join('');
   l.querySelectorAll('[data-z]').forEach(c=>c.onchange=()=>{const id=c.dataset.z;S.zal=S.zal.filter(x=>x!==id);if(c.checked)S.zal.push(id);changed();});
-  l.querySelectorAll('[data-zname]').forEach(inp=>inp.oninput=()=>{const a=LIB.find(x=>x.id===inp.dataset.zname);a.label=inp.value;idb.put(a).catch(()=>{});changed();});
-  l.querySelectorAll('[data-zdel]').forEach(b=>b.onclick=async()=>{if(!b.dataset.armed){b.dataset.armed=1;b.textContent='Na pewno?';return}const id=b.dataset.zdel;await idb.del(id);LIB=LIB.filter(x=>x.id!==id);S.zal=S.zal.filter(x=>x!==id);renderLib();changed();});
+  l.querySelectorAll('[data-zname]').forEach(inp=>inp.oninput=()=>{const a=LIB.find(x=>x.id===inp.dataset.zname);a.label=inp.value;a.zmieniono=Date.now();idb.put(a).catch(()=>{});changed();sync.soon();});
+  l.querySelectorAll('[data-zdel]').forEach(b=>b.onclick=async()=>{if(!b.dataset.armed){b.dataset.armed=1;b.textContent='Na pewno?';return}const id=b.dataset.zdel;await idb.del(id);LIB=LIB.filter(x=>x.id!==id);sync.deleteKarta(id);S.zal=S.zal.filter(x=>x!==id);renderLib();changed();});
 }
-document.getElementById('f_logoFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const o=await normImage(f);firma.logo=o.data;ls.set(LS_FIRMA,firma);document.getElementById('barLogo').src=firma.logo;changed();};
+document.getElementById('f_logoFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const o=await normImage(f);firma.logo=o.data;firma.zmieniono=Date.now();ls.set(LS_FIRMA,firma);document.getElementById('barLogo').src=firma.logo;changed(false);sync.soon();};
 
 let tt;function toast(t){const e=document.getElementById('toast');e.textContent=t;e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,2600);}
 document.getElementById('barLogo').src=firma.logo||DEFAULT_LOGO;
@@ -469,7 +486,87 @@ document.getElementById('x_typ').addEventListener('change',e=>{const t=e.target.
   else{if(sameList(S.zakres,zMAG))S.zakres=zPV;if(sameList(S.dodatki,DOD_MAG))S.dodatki=JSON.parse(JSON.stringify(DOD_PV));}
   S.typ=t;renderRows();changed();toast(t==='mag'?'Oferta: magazyn do istniejącej instalacji':'Oferta: nowa instalacja PV');});
 document.getElementById('i_mag_on').addEventListener('change',()=>{S.inst.mag_on=document.getElementById('i_mag_on').checked;renderRows();changed();});
-bindFields();fillFields();loadLib().then(preview);
+
+// ---------- synchronizacja z Dyskiem Google (Apps Script) ----------
+const LS_SYNC='se_sync_v1', LS_DEL='se_usuniete_v1', LS_DELK='se_usuniete_karty_v1';
+const sync={
+  cfg:{url:'',haslo:'',pdf:true,ostatnio:0,...ls.get(LS_SYNC,{})},
+  busy:null, stmr:null,
+  on(){return !!(this.cfg.url&&this.cfg.haslo)},
+  saveCfg(){ls.set(LS_SYNC,this.cfg)},
+  state(cls,txt,detail){const c=document.getElementById('syncChip');c.className='chip '+(cls||'');c.textContent=txt;
+    if(detail!==undefined)document.getElementById('sStatus').textContent=detail;},
+  idle(){if(!this.on())return this.state('','Dysk: wyłączony','Synchronizacja wyłączona na tym urządzeniu.');
+    if(!navigator.onLine)return this.state('warn','Dysk: offline','Brak internetu. Zmiany są zapisane na tym urządzeniu i wyślą się po połączeniu.');
+    const t=this.cfg.ostatnio?new Date(this.cfg.ostatnio).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}):'';
+    this.state('ok','Dysk: '+(t?'zsynchronizowano '+t:'połączono'),'Połączono z Dyskiem Google'+(t?' · ostatnia synchronizacja '+t:'')+'.');},
+  async api(akcja,data={}){
+    if(!this.on())throw new Error('Synchronizacja wyłączona');
+    const r=await fetch(this.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({haslo:this.cfg.haslo,akcja,...data})});
+    let j;try{j=await r.json()}catch(e){throw new Error('Skrypt nie odpowiada poprawnie – sprawdź adres i ustawienie dostępu „Każdy”')}
+    if(!j.ok)throw new Error(j.error||'Błąd skryptu');return j;},
+  async pushOffer(o){if(!this.on()||!navigator.onLine)return this.idle();
+    try{await this.api('zapiszOferte',{oferta:o});this.cfg.ostatnio=Date.now();this.saveCfg();this.idle();}
+    catch(e){this.state('err','Dysk: błąd',e.message);}},
+  async pushKarta(k){if(!this.on()||!navigator.onLine)return;try{await this.api('zapiszKarte',{karta:k});}catch(e){this.state('err','Dysk: błąd','Karta „'+k.name+'” nie trafiła na Dysk: '+e.message);}},
+  deleteOffer(id){const d=ls.get(LS_DEL,{});d[id]=Date.now();ls.set(LS_DEL,d);this.soon();},
+  deleteKarta(id){const d=ls.get(LS_DELK,{});d[id]=Date.now();ls.set(LS_DELK,d);this.soon();},
+  soon(){clearTimeout(this.stmr);this.stmr=setTimeout(()=>this.run(),3000);},
+  run(){if(this.busy)return this.busy;this.busy=this._run().finally(()=>{this.busy=null});return this.busy;},
+  async _run(){
+    if(!this.on())return this.idle();
+    if(!navigator.onLine)return this.idle();
+    this.state('','Dysk: synchronizuję…');
+    let curReset=false,libDel=false;
+    try{
+      // 1. usunięcia czekające w kolejce
+      const del=ls.get(LS_DEL,{});for(const id of Object.keys(del)){await this.api('usunOferte',{id});delete del[id];ls.set(LS_DEL,del);}
+      const delk=ls.get(LS_DELK,{});for(const id of Object.keys(delk)){await this.api('usunKarte',{id});delete delk[id];ls.set(LS_DELK,delk);}
+      // 2. bieżąca oferta trafia do listy przed porównaniem
+      clearTimeout(atmr);{const all=ls.get(LS_OF,{});const cur=all[S.id];if(S.edyt&&(!cur||(cur.zmieniono||0)<(S.zmieniono||0))){S.zapisano=new Date().toISOString();all[S.id]=S;ls.set(LS_OF,all);}}
+      const R=await this.api('lista');
+      // 3. oferty: nowsza wersja wygrywa
+      const all=ls.get(LS_OF,{});
+      for(const id of Object.keys(R.usuniete||{})){if(all[id]&&(all[id].zmieniono||0)<=R.usuniete[id])delete all[id];if(S.id===id&&!all[id]){S=newOffer();S.oferta.nr='';ls.set(LS_CUR,S);curReset=true;}}
+      for(const id of Object.keys(R.usunieteKarty||{})){if(LIB.some(x=>x.id===id)){await idb.del(id);LIB=LIB.filter(x=>x.id!==id);S.zal=S.zal.filter(x=>x!==id);libDel=true;}}
+      const remote={};(R.oferty||[]).forEach(o=>{if(o&&o.id)remote[o.id]=migrate(o)});
+      let curUpdated=false;
+      for(const id of Object.keys(remote)){const r=remote[id],l=all[id];
+        if(!l||(r.zmieniono||0)>(l.zmieniono||0)){all[id]=r;if(S.id===id)curUpdated=true;}}
+      ls.set(LS_OF,all);
+      for(const id of Object.keys(all)){const l=all[id],r=remote[id];
+        if(!r||(l.zmieniono||0)>(r.zmieniono||0))await this.api('zapiszOferte',{oferta:l});}
+      if(curUpdated){S=all[S.id];ls.set(LS_CUR,S);fillFields();preview();toast('Oferta zaktualizowana z innego urządzenia');}
+      if(curReset||(!S.edyt&&!all[S.id])){const nr=nextNr();if(S.oferta.nr!==nr){S.oferta.nr=nr;ls.set(LS_CUR,S);fillFields();preview();}}
+      if(curReset)toast('Otwarta oferta została usunięta na innym urządzeniu');
+      // 4. dane firmy
+      if(R.firma&&(R.firma.zmieniono||0)>(firma.zmieniono||0)){firma={...firma,...R.firma};ls.set(LS_FIRMA,firma);document.getElementById('barLogo').src=firma.logo||DEFAULT_LOGO;fillFields();}
+      else if(firma.zmieniono&&(!R.firma||(firma.zmieniono||0)>(R.firma.zmieniono||0)))await this.api('zapiszFirme',{firma});
+      // 5. karty katalogowe
+      const rk={};(R.karty||[]).forEach(m=>rk[m.id]=m);let libChanged=false;
+      for(const m of Object.values(rk)){const l=LIB.find(x=>x.id===m.id);
+        if(!l){this.state('','Dysk: pobieram karty…');const j=await this.api('pobierzKarte',{id:m.id});await idb.put(j.karta);LIB.push(j.karta);libChanged=true;}
+        else if((m.zmieniono||0)>(l.zmieniono||0)){Object.assign(l,{label:m.label,kat:m.kat,zmieniono:m.zmieniono});await idb.put(l);libChanged=true;}
+        else if((l.zmieniono||0)>(m.zmieniono||0))await this.api('metaKarty',{meta:{id:l.id,label:l.label,kat:l.kat,zmieniono:l.zmieniono}});}
+      for(const l of LIB){if(!rk[l.id]){if(!l.zmieniono){l.zmieniono=Date.now();await idb.put(l);}await this.api('zapiszKarte',{karta:l});}}
+      if(libChanged||libDel){renderLib();preview();}
+      this.cfg.ostatnio=Date.now();this.saveCfg();this.idle();
+    }catch(e){this.state('err','Dysk: błąd',e.message);}
+  }
+};
+document.getElementById('s_url').value=sync.cfg.url;document.getElementById('s_haslo').value=sync.cfg.haslo;document.getElementById('s_pdf').checked=sync.cfg.pdf!==false;
+document.getElementById('s_pdf').onchange=e=>{sync.cfg.pdf=e.target.checked;sync.saveCfg();};
+document.getElementById('sConnect').onclick=async()=>{const url=document.getElementById('s_url').value.trim(),haslo=document.getElementById('s_haslo').value;
+  if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url))return sync.state('err','Dysk: błąd','Wklej adres aplikacji internetowej z Apps Script – zaczyna się od https://script.google.com/macros/s/ i kończy na /exec.');
+  if(!haslo)return sync.state('err','Dysk: błąd','Wpisz hasło ustawione w skrypcie.');
+  sync.cfg.url=url;sync.cfg.haslo=haslo;
+  try{sync.state('','Dysk: łączę…','Łączę ze skryptem…');await sync.api('ping');sync.saveCfg();await sync.run();if(sync.cfg.ostatnio)toast('Połączono z Dyskiem Google');}
+  catch(e){sync.cfg.url='';sync.cfg.haslo='';sync.state('err','Dysk: błąd',e.message);}};
+document.getElementById('sOff').onclick=()=>{sync.cfg={url:'',haslo:'',pdf:sync.cfg.pdf,ostatnio:0};sync.saveCfg();document.getElementById('s_url').value='';document.getElementById('s_haslo').value='';sync.idle();toast('Odłączono. Oferty zostały na tym urządzeniu i na Dysku.');};
+document.getElementById('syncChip').onclick=()=>{if(sync.on())sync.run();else{const d=document.getElementById('syncSec');d.open=true;d.scrollIntoView({behavior:'smooth'});}};
+window.addEventListener('online',()=>sync.run());window.addEventListener('offline',()=>sync.idle());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-(sync.cfg.ostatnio||0)>20000)sync.run();});
+bindFields();fillFields();sync.idle();loadLib().then(()=>{preview();sync.run();});
 window.addEventListener('resize',()=>{clearTimeout(tmr);tmr=setTimeout(preview,400)});
 </script>
 </body>
